@@ -1,12 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Week Planner">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-180.png">
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -516,24 +510,6 @@
     padding:8px;font-size:12.5px;font-weight:600;cursor:pointer;
   }
   .type-toggle button.selected{background:var(--panel-2);color:var(--text);border-color:var(--hairline-2);}
-  .todo-add-trigger{
-    width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
-    background:var(--panel);border:1px solid var(--hairline);border-radius:var(--r-md);
-    color:var(--text);padding:12px 13px;margin-bottom:10px;cursor:pointer;text-align:left;
-    transition:transform .16s ease,background .16s ease,border-color .16s ease;
-  }
-  .todo-add-trigger:active{transform:scale(.985);background:var(--panel-2);}
-  .todo-add-trigger-left{display:flex;align-items:center;gap:10px;min-width:0;}
-  .todo-add-trigger-icon{
-    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
-    background:var(--panel-2);border:1px solid var(--hairline);font-size:20px;line-height:1;
-    flex:none;
-  }
-  .todo-add-trigger-copy{min-width:0;}
-  .todo-add-trigger-title{font-size:13px;font-weight:750;}
-  .todo-add-trigger-sub{font-size:10.5px;color:var(--text-faint);margin-top:2px;}
-  .todo-add-trigger .chev{font-size:22px;color:var(--text-faint);line-height:1;}
-  .todo-composer{margin-bottom:12px;animation:sectionIn .22s ease both;}
   .todo-add{display:flex;gap:8px;margin-bottom:8px;}
   .todo-add input[type=text]{
     flex:1;background:var(--panel);border:1px solid var(--hairline);border-radius:11px;color:var(--text);
@@ -640,19 +616,33 @@
     .sheet{border-radius:18px;max-height:80vh;}
   }
 
-/* To-Do composer: task entry lives in a sheet, keeping the list itself clean. */
-.todo-task-overlay{z-index:80}
-.todo-task-sheet{max-width:520px;margin:0 auto}
-.todo-task-sheet .type-toggle{margin-bottom:14px}
-.todo-task-sheet .field{margin-bottom:12px}
-.todo-task-sheet .todo-add-row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:0}
-.todo-task-sheet .todo-priority{min-width:0;width:100%}
-.todo-save-btn{width:100%;margin-top:14px}
-.todo-cancel-btn{width:100%;margin-top:8px;border:0;background:transparent;color:var(--text-faint);font:inherit;padding:10px;border-radius:12px}
-.todo-cancel-btn:active{transform:scale(.98)}
-@media(max-width:380px){
-  .todo-task-sheet .todo-add-row2{grid-template-columns:1fr}
-}
+  /* ---------- iPhone sheet safety / no-control-collision pass ---------- */
+  @media (max-width:559px){
+    .overlay{padding-bottom:0; padding-left:0; padding-right:0;}
+    .sheet{
+      width:100%;
+      max-width:none;
+      max-height:calc(100dvh - var(--safe-t) - 8px);
+      padding-left:18px;
+      padding-right:18px;
+      padding-bottom:calc(22px + var(--safe-b));
+      overflow-x:hidden;
+      overscroll-behavior:contain;
+      scrollbar-width:none;
+    }
+    .sheet::-webkit-scrollbar{display:none;}
+    .sheet .modal-actions{padding-bottom:2px;}
+    .time-row{gap:8px;}
+    .time-row > *{min-width:0;flex:1 1 0;}
+    .modal-actions{gap:8px;}
+    .modal-actions .btn{min-width:0;}
+  }
+  @media (max-width:380px){
+    .sheet{padding-left:15px;padding-right:15px;}
+    .field{margin-bottom:11px;}
+    .modal-actions{gap:7px;}
+  }
+
 </style>
 </head>
 <body>
@@ -814,7 +804,6 @@ let todoDraftType = 'study';
 let todoDraftDue = '';
 let todoDraftPriority = 'medium';
 let todoDraftText = '';
-let todoComposerOpen = false;
 let animSection = false;      // one-shot flag: fade in the main content on next render
 let animCheckKey = null;      // one-shot flag: pop animation for a just-toggled schedule check
 let animTodoId = null;        // one-shot flag: pop animation for a just-toggled todo check
@@ -1111,7 +1100,10 @@ function render(){
     html += renderTodoHeader();
     html += `<div class="${fadeClass.trim()}">${renderTodos(popTodoId)}</div>`;
   } else {
-    tabbar.style.display = '';
+    // Keep the floating tab bar out of the way whenever a sheet/modal is open.
+    // This prevents it from covering controls at the bottom on iPhone screens.
+    const overlayOpen = !!(modal || confirmModal || dataModal || habitModal || schoolModal || settingsOpen);
+    tabbar.style.display = overlayOpen ? 'none' : '';
     tabbar.querySelectorAll('.tabbtn').forEach(b=>{ b.classList.toggle('active', b.dataset.tab===activeTab); });
 
     const h = now.getHours(), m = now.getMinutes();
@@ -1640,16 +1632,25 @@ function renderTodoHeader(){
 }
 
 function renderTodos(popTodoId){
-  let out = `<button class="todo-add-trigger press" data-action="opentodocomposer">
-    <span class="todo-add-trigger-left">
-      <span class="todo-add-trigger-icon">+</span>
-      <span class="todo-add-trigger-copy">
-        <span class="todo-add-trigger-title">Add a task</span>
-        <span class="todo-add-trigger-sub">Study, homework, or something you need to finish</span>
-      </span>
-    </span>
-    <span class="chev">›</span>
-  </button>`;
+  let out = `<div class="type-toggle">
+    <button data-toggletype="study" class="${todoDraftType==='study'?'selected':''}">Study</button>
+    <button data-toggletype="homework" class="${todoDraftType==='homework'?'selected':''}">Homework</button>
+  </div>`;
+  out += `<div class="todo-add">
+    <input type="text" id="todo-input" placeholder="What do you need to study or finish?" value="${attr(todoDraftText)}">
+  </div>`;
+  out += `<div class="todo-add-row2">
+    <div class="due-field">
+      <input type="date" id="todo-due" value="${attr(todoDraftDue)}">
+      ${todoDraftDue?'<button class="due-clear" data-action="cleardue">×</button>':''}
+    </div>
+    <select id="todo-priority" class="todo-priority" aria-label="Priority">
+      <option value="high" ${todoDraftPriority==='high'?'selected':''}>High priority</option>
+      <option value="medium" ${todoDraftPriority==='medium'?'selected':''}>Medium priority</option>
+      <option value="low" ${todoDraftPriority==='low'?'selected':''}>Low priority</option>
+    </select>
+    <button class="btn primary" data-action="addtodo">Add</button>
+  </div>`;
 
   if(!todos.length){
     out += `<div class="todo-empty">Nothing on the list yet.<br>Add what you want to study or finish this week.</div>`;
@@ -1676,36 +1677,9 @@ function renderTodos(popTodoId){
       </div>`;
     });
   }
-
-  if(todoComposerOpen) out += `<div class="overlay todo-task-overlay" id="todo-task-overlay">
-    <div class="sheet todo-task-sheet">
-      <div class="sheet-handle"></div>
-      <h3>Add task</h3>
-      <div class="type-toggle">
-        <button data-toggletype="study" class="${todoDraftType==='study'?'selected':''}">Study</button>
-        <button data-toggletype="homework" class="${todoDraftType==='homework'?'selected':''}">Homework</button>
-      </div>
-      <div class="field">
-        <label>Task</label>
-        <input type="text" id="todo-input" placeholder="What do you need to study or finish?" value="${attr(todoDraftText)}">
-      </div>
-      <div class="todo-add-row2">
-        <div class="due-field">
-          <input type="date" id="todo-due" value="${attr(todoDraftDue)}">
-          ${todoDraftDue?'<button class="due-clear" data-action="cleardue">×</button>':''}
-        </div>
-        <select id="todo-priority" class="todo-priority" aria-label="Priority">
-          <option value="high" ${todoDraftPriority==='high'?'selected':''}>High priority</option>
-          <option value="medium" ${todoDraftPriority==='medium'?'selected':''}>Medium priority</option>
-          <option value="low" ${todoDraftPriority==='low'?'selected':''}>Low priority</option>
-        </select>
-      </div>
-      <button class="btn primary todo-save-btn" data-action="addtodo">Add task</button>
-      <button class="todo-cancel-btn" data-action="closetodocomposer">Cancel</button>
-    </div>
-  </div>`;
   return out;
 }
+
 /* ============================== modals ============================== */
 
 function renderModal(){
@@ -2080,22 +2054,7 @@ function attachHandlers(){
     });
   });
 
-  // todo composer
-  const openTodoComposer = app.querySelector('[data-action="opentodocomposer"]');
-  if(openTodoComposer) openTodoComposer.addEventListener('click', ()=>{
-    todoComposerOpen = true;
-    render();
-    setTimeout(()=>document.getElementById('todo-input')?.focus(), 40);
-  });
-  const closeTodoComposer = app.querySelector('[data-action="closetodocomposer"]');
-  if(closeTodoComposer) closeTodoComposer.addEventListener('click', ()=>{
-    todoComposerOpen = false;
-    todoDraftText = '';
-    todoDraftDue = '';
-    todoDraftPriority = 'medium';
-    render();
-  });
-// todo handlers
+  // todo handlers
   app.querySelectorAll('[data-toggletype]').forEach(el=>{
     el.addEventListener('click', ()=>{ todoDraftType = el.dataset.toggletype; render(); });
   });
@@ -2108,7 +2067,6 @@ function attachHandlers(){
     const priority = priorityInput ? priorityInput.value : todoDraftPriority;
     todos.push({id:uid(), text, type:todoDraftType, done:false, due: todoDraftDue || null, priority: priority || 'medium'});
     todoDraftDue = ''; todoDraftPriority = 'medium'; todoDraftText = '';
-    todoComposerOpen = false;
     saveTodos();
     render();
   });
