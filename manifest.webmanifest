@@ -1,27 +1,26 @@
 {
-  "name": "Week Planner",
-  "short_name": "Week Planner",
-  "start_url": "./",
+  "name": "Week Plan",
+  "short_name": "Week Plan",
+  "description": "A personal weekly planner for your schedule, school, habits, and to-dos.",
+  "id": "./index_week_browse.html",
+  "start_url": "./index_week_browse.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f5f7",
-  "theme_color": "#f5f5f7",
+  "background_color": "#0b0c0f",
+  "theme_color": "#0b0c0f",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "./icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "./icon-512-maskable.png",
-      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./week-plan-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

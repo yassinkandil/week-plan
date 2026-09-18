@@ -1,62 +1,30 @@
-const CACHE_NAME = "week-planner-v3";
+const CACHE_NAME = 'week-plan-v1';
+const APP_SHELL = [
+  './',
+  './index_week_browse.html',
+  './manifest.webmanifest',
+  './week-plan-icon.svg'
+];
 
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    ).then(() => self.clients.claim())
-  );
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
 
-self.addEventListener("fetch", (event) => {
-  const request = event.request;
+self.addEventListener('fetch', event => {
+  if(event.request.method !== 'GET') return;
+  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+    const copy = response.clone();
+    if(response.ok && new URL(event.request.url).origin === self.location.origin){
+      caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+    }
+    return response;
+  }).catch(() => caches.match('./index_week_browse.html'))));
+});
 
-  // Only handle same-origin GET requests.
-  if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) {
-    return;
-  }
-
-  // For page navigations, always prefer the live GitHub Pages page.
-  // This avoids installing/launching a cached GitHub 404 page.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() =>
-          caches.match(request).then((cached) =>
-            cached || caches.match("./") || caches.match("./index.html")
-          )
-        )
-    );
-    return;
-  }
-
-  // Cache successful static assets.
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-
-      return fetch(request).then((response) => {
-        if (response.ok && response.type === "basic") {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      });
-    })
-  );
+self.addEventListener('message', event => {
+  if(event.data === 'SKIP_WAITING') self.skipWaiting();
 });
